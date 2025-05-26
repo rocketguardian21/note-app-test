@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import CreatableSelect from 'react-select/creatable';
 import { Card } from 'primereact/card';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
+import { Toast } from 'primereact/toast';
+import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { db } from './firebase';
 import 'react-quill/dist/quill.snow.css';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
@@ -15,8 +18,46 @@ function App() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [tags, setTags] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const toast = React.useRef(null);
 
-  // Configuración de módulos para ReactQuill
+  // Cargar notas al iniciar
+  useEffect(() => {
+    fetchNotes();
+  }, []);
+
+  const fetchNotes = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'notes'));
+      const notesData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setNotes(notesData);
+    } catch (error) {
+      console.error('Error al cargar las notas:', error);
+      showError('Error al cargar las notas');
+    }
+  };
+
+  const showSuccess = (message) => {
+    toast.current?.show({
+      severity: 'success',
+      summary: 'Éxito',
+      detail: message,
+      life: 3000
+    });
+  };
+
+  const showError = (message) => {
+    toast.current?.show({
+      severity: 'error',
+      summary: 'Error',
+      detail: message,
+      life: 3000
+    });
+  };
+
   const modules = {
     toolbar: [
       [{ 'header': [1, 2, 3, false] }],
@@ -29,39 +70,47 @@ function App() {
     ],
   };
 
-  const handleTitle = (event) => {
-    setTitle(event.target.value);
-  };
-
-  const handleBody = (content) => {
-    setBody(content);
-  };
-
-  const handleTags = (newTags) => {
-    setTags(newTags ? newTags.map(tag => tag.value) : []);
-  };
-
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const newNote = {
-      id: Date.now(),
-      title,
-      body,
-      tags,
-      createdAt: new Date().toLocaleString()
-    };
-    setNotes([...notes, newNote]);
-    setTitle('');
-    setBody('');
-    setTags([]);
+    setLoading(true);
+
+    try {
+      const newNote = {
+        title,
+        body,
+        tags,
+        createdAt: new Date().toISOString()
+      };
+
+      const docRef = await addDoc(collection(db, 'notes'), newNote);
+      newNote.id = docRef.id;
+      setNotes([...notes, newNote]);
+      setTitle('');
+      setBody('');
+      setTags([]);
+      showSuccess('Nota guardada correctamente');
+    } catch (error) {
+      console.error('Error al guardar la nota:', error);
+      showError('Error al guardar la nota');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (noteId) => {
-    setNotes(notes.filter(note => note.id !== noteId));
+  const handleDelete = async (noteId) => {
+    try {
+      await deleteDoc(doc(db, 'notes', noteId));
+      setNotes(notes.filter(note => note.id !== noteId));
+      showSuccess('Nota eliminada correctamente');
+    } catch (error) {
+      console.error('Error al eliminar la nota:', error);
+      showError('Error al eliminar la nota');
+    }
   };
 
   return (
     <div className="App">
+      <Toast ref={toast} />
       <header className="app-header">
         <h1 className="app-title">My Notes</h1>
       </header>
@@ -73,7 +122,7 @@ function App() {
             <InputText
               id="title"
               value={title}
-              onChange={handleTitle}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter note title"
               className="w-100"
             />
@@ -83,7 +132,7 @@ function App() {
             <label htmlFor="body">Content</label>
             <ReactQuill
               value={body}
-              onChange={handleBody}
+              onChange={setBody}
               modules={modules}
               placeholder="Write your note here..."
               className="quill-editor"
@@ -94,7 +143,7 @@ function App() {
             <label htmlFor="tags">Tags</label>
             <CreatableSelect
               isMulti
-              onChange={handleTags}
+              onChange={(newTags) => setTags(newTags ? newTags.map(tag => tag.value) : [])}
               className="react-select-container"
               classNamePrefix="react-select"
               options={[
@@ -104,6 +153,7 @@ function App() {
                 { value: 'ideas', label: 'Ideas' }
               ]}
               placeholder="Add or select tags"
+              value={tags.map(tag => ({ value: tag, label: tag }))}
             />
           </div>
 
@@ -112,6 +162,7 @@ function App() {
             label="Create Note" 
             icon="pi pi-plus" 
             className="p-button-primary"
+            loading={loading}
           />
         </form>
       </Card>
@@ -140,7 +191,9 @@ function App() {
                   </span>
                 ))}
               </div>
-              <small className="note-date">{note.createdAt}</small>
+              <small className="note-date">
+                {new Date(note.createdAt).toLocaleString()}
+              </small>
             </div>
           </Card>
         ))}

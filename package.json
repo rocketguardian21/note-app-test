@@ -8,6 +8,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "bootstrap": "^5.3.6",
+    "firebase": "^11.8.1",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.5",
     "quill": "^2.0.3",
