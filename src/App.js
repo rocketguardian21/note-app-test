@@ -5,8 +5,10 @@ import { Card } from 'primereact/card';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { db } from './firebase';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import Login from './components/Login';
 import 'react-quill/dist/quill.snow.css';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
@@ -19,16 +21,46 @@ function App() {
   const [body, setBody] = useState('');
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
   const toast = React.useRef(null);
 
-  // Cargar notas al iniciar
   useEffect(() => {
-    fetchNotes();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        fetchNotes();
+      } else {
+        setNotes([]);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const fetchNotes = async () => {
+  const handleLogin = (userData) => {
+    setUser(userData);
+  };
+
+  const handleLogout = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, 'notes'));
+      await signOut(auth);
+      setUser(null);
+      setNotes([]);
+      showSuccess('Sesión cerrada correctamente');
+    } catch (error) {
+      showError('Error al cerrar sesión');
+    }
+  };
+
+  const fetchNotes = async () => {
+    if (!user) return;
+
+    try {
+      const q = query(
+        collection(db, 'notes'),
+        where('userId', '==', user.uid)
+      );
+      const querySnapshot = await getDocs(q);
       const notesData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -72,6 +104,8 @@ function App() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!user) return;
+    
     setLoading(true);
 
     try {
@@ -79,6 +113,7 @@ function App() {
         title,
         body,
         tags,
+        userId: user.uid,
         createdAt: new Date().toISOString()
       };
 
@@ -98,6 +133,8 @@ function App() {
   };
 
   const handleDelete = async (noteId) => {
+    if (!user) return;
+
     try {
       await deleteDoc(doc(db, 'notes', noteId));
       setNotes(notes.filter(note => note.id !== noteId));
@@ -108,11 +145,26 @@ function App() {
     }
   };
 
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="App">
       <Toast ref={toast} />
       <header className="app-header">
-        <h1 className="app-title">My Notes</h1>
+        <div className="header-content">
+          <h1 className="app-title">My Notes</h1>
+          <div className="user-info">
+            <span>Bienvenido, {user.displayName || 'Usuario'}</span>
+            <Button 
+              icon="pi pi-sign-out" 
+              className="p-button-text" 
+              onClick={handleLogout}
+              tooltip="Cerrar sesión"
+            />
+          </div>
+        </div>
       </header>
 
       <Card className="note-form-card">
