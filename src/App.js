@@ -9,6 +9,7 @@ import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'fireb
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import Login from './components/Login';
+import ExportMenu from './components/ExportMenu';
 import 'react-quill/dist/quill.snow.css';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
@@ -224,12 +225,15 @@ function App() {
           <Card key={note.id} className="note-card">
             <div className="note-header">
               <h2 className="note-title">{note.title}</h2>
-              <Button
-                icon="pi pi-trash"
-                className="p-button-rounded p-button-danger p-button-text"
-                onClick={() => handleDelete(note.id)}
-                tooltip="Delete note"
-              />
+              <div className="note-actions">
+                <ExportMenu note={note} />
+                <Button
+                  icon="pi pi-trash"
+                  className="p-button-rounded p-button-danger p-button-text"
+                  onClick={() => handleDelete(note.id)}
+                  tooltip="Delete note"
+                />
+              </div>
             </div>
             <div 
               className="note-content"

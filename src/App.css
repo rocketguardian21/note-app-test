@@ -144,3 +144,13 @@
     padding: 0;
   }
 }
+
+.note-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.export-menu {
+  display: inline-block;
+}
